@@ -5,6 +5,9 @@ import json
 import time
 import os
 import uuid
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
 
 # Конфигурация Kafka
 KAFKA_CONFIG = {
@@ -100,3 +103,57 @@ if st.session_state.uploaded_files:
                             st.rerun()
                 else:
                     st.error("Файл не содержит данных")
+
+
+
+st.markdown("---")
+st.title("📊 Просмотр результатов скоринга")
+
+if st.button("Посмотреть результаты"):
+    try:
+        # Подключение к базе
+        conn = psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST", "postgres"),
+            dbname=os.getenv("POSTGRES_DB", "scores_db"),
+            user=os.getenv("POSTGRES_USER", "user"),
+            password=os.getenv("POSTGRES_PASSWORD", "password")
+        )
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Получаем 10 последних фродовых транзакций
+        cursor.execute("""
+            SELECT transaction_id, score, fraud_flag, created_at 
+            FROM scores 
+            WHERE fraud_flag = 1 
+            ORDER BY created_at DESC 
+            LIMIT 10;
+        """)
+        fraud_results = cursor.fetchall()
+
+        st.subheader("🚨 Последние фродовые транзакции")
+        if fraud_results:
+            df_fraud = pd.DataFrame(fraud_results)
+            st.dataframe(df_fraud)
+        else:
+            st.info("Фродовые транзакции не найдены.")
+
+        # Получаем последние 100 транзакций для гистограммы
+        cursor.execute("""
+            SELECT score 
+            FROM scores 
+            ORDER BY created_at DESC 
+            LIMIT 100;
+        """)
+        all_scores = cursor.fetchall()
+
+        if all_scores:
+            df_scores = pd.DataFrame(all_scores)
+            st.subheader("📈 Распределение скорингов (последние 100 транзакций)")
+            st.bar_chart(df_scores["score"])
+        else:
+            st.info("Недостаточно данных для построения гистограммы.")
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        st.error(f"Ошибка при подключении к базе данных: {e}")

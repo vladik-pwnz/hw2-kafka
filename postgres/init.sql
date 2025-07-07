@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS scores (
+  transaction_id VARCHAR PRIMARY KEY,
+  score DOUBLE PRECISION NOT NULL,
+  fraud_flag SMALLINT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
